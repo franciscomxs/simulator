@@ -1,0 +1,328 @@
+openapi: "3.0.3"
+info:
+  title: Simulator API
+  description: |
+    Financial simulation API supporting loan amortization and investment growth projections.
+
+    - **Loan simulation** — full amortization schedule for PRICE (French) and SAC (Constant Amortization) systems.
+    - **Investment simulation** — compound growth projection with monthly contributions and a yearly timeline.
+  version: "1.0.0"
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns 200 when the service is up.
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+              example:
+                status: "ok"
+
+  /loan/simulate:
+    post:
+      summary: Simulate a loan
+      description: |
+        Computes the full amortization schedule for the given loan parameters.
+
+        **PRICE** — fixed payment; interest portion decreases, principal portion increases over time.
+
+        **SAC** — constant principal amortization; payment amount decreases over time.
+
+        Constraints: `rate` must be in range [0, 1); `term` must be between 1 and 600.
+      operationId: simulateLoan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SimulateLoanRequest'
+            examples:
+              price:
+                summary: PRICE loan
+                value:
+                  amount: 10000
+                  rate: 0.02
+                  term: 12
+                  system: "PRICE"
+              sac:
+                summary: SAC loan
+                value:
+                  amount: 10000
+                  rate: 0.02
+                  term: 12
+                  system: "SAC"
+      responses:
+        "200":
+          description: Amortization schedule computed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimulateLoanResponse'
+              example:
+                amount: 10000
+                rate: 0.02
+                term: 12
+                system: "PRICE"
+                total_amount: 11347.20
+                installments:
+                  - number: 1
+                    payment: 945.60
+                    principal: 745.60
+                    interest: 200.00
+                  - number: 2
+                    payment: 945.60
+                    principal: 760.51
+                    interest: 185.09
+        "400":
+          description: Invalid input parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_system:
+                  summary: Unknown amortization system
+                  value:
+                    error: "invalid simulation parameters"
+                invalid_amount:
+                  summary: Non-positive amount
+                  value:
+                    error: "invalid simulation parameters"
+        "413":
+          description: Request body too large (limit 4 KB)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "request body too large"
+
+  /investment/simulate:
+    post:
+      summary: Simulate an investment
+      description: |
+        Projects compound growth of an investment over time with optional monthly contributions.
+
+        Formula applied each month:
+        ```
+        balance = balance × (1 + rate) + monthly_contribution
+        ```
+
+        Returns a yearly timeline suitable for charting total invested capital vs. portfolio value.
+      operationId: simulateInvestment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SimulateInvestmentRequest'
+            example:
+              initial_amount: 0
+              monthly_contribution: 1000
+              rate: 0.01
+              term: 10
+      responses:
+        "200":
+          description: Investment simulation computed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimulateInvestmentResponse'
+              example:
+                initial_amount: 0
+                monthly_contribution: 1000
+                rate: 0.01
+                term: 10
+                final_amount: 230038.69
+                timeline:
+                  - year: 1
+                    contributions: 12000
+                    balance: 12682.50
+                  - year: 2
+                    contributions: 24000
+                    balance: 26973.46
+        "400":
+          description: Invalid input parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "invalid simulation parameters"
+        "413":
+          description: Request body too large (limit 4 KB)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "request body too large"
+
+components:
+  schemas:
+    SimulateLoanRequest:
+      type: object
+      required: [amount, rate, term, system]
+      properties:
+        amount:
+          type: number
+          format: double
+          description: Loan principal (must be > 0)
+          example: 10000
+        rate:
+          type: number
+          format: double
+          description: Monthly interest rate (0 <= rate < 1)
+          example: 0.02
+        term:
+          type: integer
+          description: Number of installments (1 to 600)
+          example: 12
+        system:
+          type: string
+          enum: [PRICE, SAC]
+          description: Amortization system
+          example: PRICE
+
+    SimulateLoanResponse:
+      type: object
+      properties:
+        amount:
+          type: number
+          format: double
+          example: 10000
+        rate:
+          type: number
+          format: double
+          example: 0.02
+        term:
+          type: integer
+          example: 12
+        system:
+          type: string
+          example: PRICE
+        total_amount:
+          type: number
+          format: double
+          description: Sum of all installment payments
+          example: 11347.20
+        installments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Installment'
+
+    Installment:
+      type: object
+      properties:
+        number:
+          type: integer
+          description: Installment number (1-based)
+          example: 1
+        payment:
+          type: number
+          format: double
+          description: Total payment (principal + interest)
+          example: 945.60
+        principal:
+          type: number
+          format: double
+          description: Principal portion
+          example: 745.60
+        interest:
+          type: number
+          format: double
+          description: Interest portion
+          example: 200.00
+
+    SimulateInvestmentRequest:
+      type: object
+      required: [monthly_contribution, rate, term]
+      properties:
+        initial_amount:
+          type: number
+          format: double
+          description: Initial investment amount (>= 0, default 0)
+          example: 0
+        monthly_contribution:
+          type: number
+          format: double
+          description: Monthly contribution amount (>= 0)
+          example: 1000
+        rate:
+          type: number
+          format: double
+          description: Monthly interest rate (>= 0)
+          example: 0.01
+        term:
+          type: integer
+          description: Investment horizon in years (> 0)
+          example: 10
+
+    SimulateInvestmentResponse:
+      type: object
+      properties:
+        initial_amount:
+          type: number
+          format: double
+          example: 0
+        monthly_contribution:
+          type: number
+          format: double
+          example: 1000
+        rate:
+          type: number
+          format: double
+          example: 0.01
+        term:
+          type: integer
+          example: 10
+        final_amount:
+          type: number
+          format: double
+          description: Portfolio value at end of investment horizon
+          example: 230038.69
+        timeline:
+          type: array
+          description: One entry per year
+          items:
+            $ref: '#/components/schemas/YearlySnapshot'
+
+    YearlySnapshot:
+      type: object
+      properties:
+        year:
+          type: integer
+          description: Year number (1-based)
+          example: 1
+        contributions:
+          type: number
+          format: double
+          description: Total amount invested up to this year (initial + all monthly contributions)
+          example: 12000
+        balance:
+          type: number
+          format: double
+          description: Portfolio value at end of this year
+          example: 12682.50
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: "invalid simulation parameters"

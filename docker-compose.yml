@@ -1,0 +1,21 @@
+services:
+  app:
+    build:
+      context: .
+      target: builder
+    working_dir: /app
+    volumes:
+      - .:/app
+      - go-cache:/root/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+    ports:
+      - "8080:8080"
+    command: go run ./cmd/web
+    environment:
+      - PORT=8080
+      - GOFLAGS=-mod=mod
+      - GONOSUMDB=*
+
+volumes:
+  go-cache:
+  go-build-cache:

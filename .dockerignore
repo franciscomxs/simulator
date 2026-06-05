@@ -1,0 +1,41 @@
+# Git
+.git
+.gitignore
+
+# Docker
+.dockerignore
+docker-compose*.yml
+Dockerfile*
+
+# CI/CD
+.github/
+
+# Docs
+docs/
+README.md
+CLAUDE.md
+*.md
+
+# Tests
+test/
+*_test.go
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+
+# Build output
+bin/
+coverage.out
+coverage.html
+
+# AI Agents
+.claude
