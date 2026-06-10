@@ -3,19 +3,21 @@ package httphandler_test
 import (
 	"bytes"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler"
 	"github.com/franciscomxs/simulator/internal/adapters/inbound/dto"
+	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler"
 	"github.com/franciscomxs/simulator/internal/application/usecases"
 )
 
 func newTestLoanHandler() *httphandler.LoanHandler {
 	uc := usecases.NewSimulateLoan()
-	return httphandler.NewLoanHandler(uc)
+	return httphandler.NewLoanHandler(uc, slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
 func TestHTTPHandler_SimulatePRICE(t *testing.T) {
@@ -129,8 +131,8 @@ func TestHTTPHandler_InvalidSystem(t *testing.T) {
 
 	h.Simulate(rr, req)
 
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400, got %d", rr.Code)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected status 422, got %d", rr.Code)
 	}
 
 	var errResp dto.ErrorResponse
@@ -152,8 +154,8 @@ func TestHTTPHandler_NegativeAmount(t *testing.T) {
 
 	h.Simulate(rr, req)
 
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400, got %d", rr.Code)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected status 422, got %d", rr.Code)
 	}
 }
 

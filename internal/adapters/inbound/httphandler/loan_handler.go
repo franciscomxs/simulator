@@ -1,67 +1,47 @@
 package httphandler
 
 import (
-	"encoding/json"
-	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/franciscomxs/simulator/internal/adapters/inbound/dto"
 	"github.com/franciscomxs/simulator/internal/application/ports"
 )
 
-const maxRequestBodyBytes = 4 << 10 // 4 kb
-
 // LoanHandler holds the HTTP handler dependencies for loan simulation.
 type LoanHandler struct {
 	useCase ports.SimulateLoanUseCase
+	log     *slog.Logger
 }
 
 // NewLoanHandler creates a new LoanHandler.
-func NewLoanHandler(uc ports.SimulateLoanUseCase) *LoanHandler {
-	return &LoanHandler{useCase: uc}
+func NewLoanHandler(uc ports.SimulateLoanUseCase, log *slog.Logger) *LoanHandler {
+	return &LoanHandler{useCase: uc, log: log}
 }
 
 // Simulate handles POST /loan/simulate requests.
 func (h *LoanHandler) Simulate(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
-
-	var req dto.SimulateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		var maxBytesErr *http.MaxBytesError
-		if errors.As(err, &maxBytesErr) {
-			w.WriteHeader(http.StatusRequestEntityTooLarge)
-			_ = json.NewEncoder(w).Encode(dto.ErrorResponse{Error: "request body too large"})
-		} else {
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(dto.ErrorResponse{Error: "invalid request body"})
-		}
+	req, ok := decodeJSON[dto.SimulateRequest](w, r)
+	if !ok {
 		return
 	}
 
 	if err := req.Validate(); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(dto.ErrorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
 		return
 	}
 
-	input := ports.SimulateLoanInput{
+	out, err := h.useCase.Execute(ports.SimulateLoanInput{
 		Amount:       req.Amount,
 		Rate:         req.Rate,
 		Term:         req.Term,
 		System:       req.System,
 		GracePeriod:  req.GracePeriod,
 		CustomerType: req.CustomerType,
-	}
-
-	out, err := h.useCase.Execute(input)
+	})
 	if err != nil {
-		log.Printf("loan simulate: %v", err)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(dto.ErrorResponse{Error: "invalid simulation parameters"})
+		h.log.Error("loan simulate", "error", err)
+		writeJSON(w, httpStatusForError(err), dto.ErrorResponse{Error: "invalid simulation parameters"})
 		return
 	}
 
@@ -77,7 +57,7 @@ func (h *LoanHandler) Simulate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	resp := dto.SimulateResponse{
+	writeJSON(w, http.StatusOK, dto.SimulateResponse{
 		Amount:         out.Amount,
 		Rate:           out.Rate,
 		Term:           out.Term,
@@ -92,9 +72,5 @@ func (h *LoanHandler) Simulate(w http.ResponseWriter, r *http.Request) {
 		FinancedAmount: out.FinancedAmount,
 		TotalAmount:    out.TotalAmount,
 		Installments:   installments,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(resp)
+	})
 }

@@ -1,9 +1,7 @@
 package httphandler
 
 import (
-	"encoding/json"
-	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/franciscomxs/simulator/internal/adapters/inbound/dto"
@@ -13,44 +11,30 @@ import (
 // InvestmentHandler holds the HTTP handler dependencies for investment simulation.
 type InvestmentHandler struct {
 	useCase ports.SimulateInvestmentUseCase
+	log     *slog.Logger
 }
 
 // NewInvestmentHandler creates a new InvestmentHandler.
-func NewInvestmentHandler(uc ports.SimulateInvestmentUseCase) *InvestmentHandler {
-	return &InvestmentHandler{useCase: uc}
+func NewInvestmentHandler(uc ports.SimulateInvestmentUseCase, log *slog.Logger) *InvestmentHandler {
+	return &InvestmentHandler{useCase: uc, log: log}
 }
 
 // SimulateInvestment handles POST /investment/simulate requests.
 func (h *InvestmentHandler) SimulateInvestment(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
-
-	var req dto.SimulateInvestmentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		var maxBytesErr *http.MaxBytesError
-		if errors.As(err, &maxBytesErr) {
-			w.WriteHeader(http.StatusRequestEntityTooLarge)
-			_ = json.NewEncoder(w).Encode(dto.ErrorResponse{Error: "request body too large"})
-		} else {
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(dto.ErrorResponse{Error: "invalid request body"})
-		}
+	req, ok := decodeJSON[dto.SimulateInvestmentRequest](w, r)
+	if !ok {
 		return
 	}
 
-	input := ports.SimulateInvestmentInput{
+	out, err := h.useCase.Execute(ports.SimulateInvestmentInput{
 		InitialAmount:       req.InitialAmount,
 		MonthlyContribution: req.MonthlyContribution,
 		Rate:                req.Rate,
 		Term:                req.Term,
-	}
-
-	out, err := h.useCase.Execute(input)
+	})
 	if err != nil {
-		log.Printf("investment simulate: %v", err)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(dto.ErrorResponse{Error: "invalid simulation parameters"})
+		h.log.Error("investment simulate", "error", err)
+		writeJSON(w, httpStatusForError(err), dto.ErrorResponse{Error: "invalid simulation parameters"})
 		return
 	}
 
@@ -63,16 +47,12 @@ func (h *InvestmentHandler) SimulateInvestment(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	resp := dto.SimulateInvestmentResponse{
+	writeJSON(w, http.StatusOK, dto.SimulateInvestmentResponse{
 		InitialAmount:       out.InitialAmount,
 		MonthlyContribution: out.MonthlyContribution,
 		Rate:                out.Rate,
 		Term:                out.Term,
 		FinalAmount:         out.FinalAmount,
 		Timeline:            timeline,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(resp)
+	})
 }

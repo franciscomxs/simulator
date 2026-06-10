@@ -3,19 +3,21 @@ package httphandler_test
 import (
 	"bytes"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler"
 	"github.com/franciscomxs/simulator/internal/adapters/inbound/dto"
+	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler"
 	"github.com/franciscomxs/simulator/internal/application/usecases"
 )
 
 func newInvestmentHandler() *httphandler.InvestmentHandler {
 	uc := usecases.NewSimulateInvestment()
-	return httphandler.NewInvestmentHandler(uc)
+	return httphandler.NewInvestmentHandler(uc, slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
 func TestHTTPInvestmentHandler_Valid(t *testing.T) {
@@ -58,8 +60,8 @@ func TestHTTPInvestmentHandler_NegativeInitialAmount(t *testing.T) {
 
 	h.SimulateInvestment(rr, req)
 
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400, got %d", rr.Code)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected status 422, got %d", rr.Code)
 	}
 }
 
@@ -73,8 +75,8 @@ func TestHTTPInvestmentHandler_NegativeMonthlyContribution(t *testing.T) {
 
 	h.SimulateInvestment(rr, req)
 
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400, got %d", rr.Code)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected status 422, got %d", rr.Code)
 	}
 }
 
@@ -88,8 +90,8 @@ func TestHTTPInvestmentHandler_NegativeRate(t *testing.T) {
 
 	h.SimulateInvestment(rr, req)
 
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400, got %d", rr.Code)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected status 422, got %d", rr.Code)
 	}
 }
 
@@ -103,8 +105,8 @@ func TestHTTPInvestmentHandler_ZeroTerm(t *testing.T) {
 
 	h.SimulateInvestment(rr, req)
 
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400, got %d", rr.Code)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected status 422, got %d", rr.Code)
 	}
 }
 

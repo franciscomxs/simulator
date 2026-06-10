@@ -3,21 +3,23 @@ package e2e_test
 import (
 	"bytes"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler"
 	"github.com/franciscomxs/simulator/internal/adapters/inbound/dto"
+	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler"
 	"github.com/franciscomxs/simulator/internal/infrastructure/container"
 )
-
 
 func newTestServer() *httptest.Server {
 	loanUC := container.NewSimulateLoanUseCase()
 	investUC := container.NewSimulateInvestmentUseCase()
-	loanHandler := httphandler.NewLoanHandler(loanUC)
-	investHandler := httphandler.NewInvestmentHandler(investUC)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	loanHandler := httphandler.NewLoanHandler(loanUC, logger)
+	investHandler := httphandler.NewInvestmentHandler(investUC, logger)
 	router := httphandler.NewRouter(loanHandler, investHandler)
 	return httptest.NewServer(router)
 }
@@ -199,8 +201,8 @@ func TestE2E_ValidationError(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("expected status 400, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Errorf("expected status 422, got %d", resp.StatusCode)
 	}
 
 	var errResp dto.ErrorResponse

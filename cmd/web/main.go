@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -12,11 +13,12 @@ import (
 
 func main() {
 	cfg := config.Load()
+	logger := slog.Default()
 
 	loanUC := container.NewSimulateLoanUseCase()
 	investUC := container.NewSimulateInvestmentUseCase()
-	loanHandler := httphandler.NewLoanHandler(loanUC)
-	investHandler := httphandler.NewInvestmentHandler(investUC)
+	loanHandler := httphandler.NewLoanHandler(loanUC, logger)
+	investHandler := httphandler.NewInvestmentHandler(investUC, logger)
 	router := httphandler.NewRouter(loanHandler, investHandler)
 
 	srv := &http.Server{

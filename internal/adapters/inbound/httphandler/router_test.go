@@ -2,6 +2,8 @@ package httphandler_test
 
 import (
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,7 +14,7 @@ import (
 
 func newTestInvestmentHandler() *httphandler.InvestmentHandler {
 	uc := usecases.NewSimulateInvestment()
-	return httphandler.NewInvestmentHandler(uc)
+	return httphandler.NewInvestmentHandler(uc, slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
 func newTestRouter() http.Handler {
