@@ -2,28 +2,34 @@ package ports
 
 // SimulateLoanInput holds the input for the simulate loan use case.
 type SimulateLoanInput struct {
-	Amount float64
-	Rate   float64
-	Term   int
-	System string
+	Amount      float64
+	Rate        float64
+	Term        int
+	System      string
+	GracePeriod int
 }
 
 // InstallmentOutput holds a single installment in the use case output.
 type InstallmentOutput struct {
 	Number    int
+	Type      string
 	Payment   float64
 	Principal float64
 	Interest  float64
+	Balance   float64
 }
 
 // SimulateLoanOutput holds the result of the simulate loan use case.
 type SimulateLoanOutput struct {
-	Amount       float64
-	Rate         float64
-	Term         int
-	System       string
-	TotalAmount  float64
-	Installments []InstallmentOutput
+	Amount         float64
+	Rate           float64
+	Term           int
+	System         string
+	GracePeriod    int
+	AdjustedAmount float64
+	TotalDuration  int
+	TotalAmount    float64
+	Installments   []InstallmentOutput
 }
 
 // SimulateLoanUseCase is the input port for the simulate loan use case.

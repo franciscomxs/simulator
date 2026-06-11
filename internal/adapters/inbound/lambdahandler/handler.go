@@ -67,10 +67,11 @@ func (h *Handler) handleLoanSimulate(req events.APIGatewayProxyRequest) (events.
 	}
 
 	out, err := h.loanUseCase.Execute(ports.SimulateLoanInput{
-		Amount: simReq.Amount,
-		Rate:   simReq.Rate,
-		Term:   simReq.Term,
-		System: simReq.System,
+		Amount:      simReq.Amount,
+		Rate:        simReq.Rate,
+		Term:        simReq.Term,
+		System:      simReq.System,
+		GracePeriod: simReq.GracePeriod,
 	})
 	if err != nil {
 		return jsonResponse(400, dto.ErrorResponse{Error: "invalid simulation parameters"}), nil
@@ -80,19 +81,24 @@ func (h *Handler) handleLoanSimulate(req events.APIGatewayProxyRequest) (events.
 	for i, inst := range out.Installments {
 		installments[i] = dto.InstallmentResponse{
 			Number:    inst.Number,
+			Type:      inst.Type,
 			Payment:   inst.Payment,
 			Principal: inst.Principal,
 			Interest:  inst.Interest,
+			Balance:   inst.Balance,
 		}
 	}
 
 	return jsonResponse(200, dto.SimulateResponse{
-		Amount:       out.Amount,
-		Rate:         out.Rate,
-		Term:         out.Term,
-		System:       out.System,
-		TotalAmount:  out.TotalAmount,
-		Installments: installments,
+		Amount:         out.Amount,
+		Rate:           out.Rate,
+		Term:           out.Term,
+		System:         out.System,
+		GracePeriod:    out.GracePeriod,
+		AdjustedAmount: out.AdjustedAmount,
+		TotalDuration:  out.TotalDuration,
+		TotalAmount:    out.TotalAmount,
+		Installments:   installments,
 	}), nil
 }
 

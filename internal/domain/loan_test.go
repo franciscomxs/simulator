@@ -269,3 +269,210 @@ func TestSimulate_ZeroRate(t *testing.T) {
 		}
 	}
 }
+
+// --- Grace period tests ---
+
+func TestSimulate_NegativeGracePeriod(t *testing.T) {
+	p := priceParams()
+	p.GracePeriod = -1
+	_, err := domain.Simulate(p)
+	if !errors.Is(err, domain.ErrInvalidGracePeriod) {
+		t.Errorf("expected ErrInvalidGracePeriod, got %v", err)
+	}
+}
+
+func TestSimulate_GracePlusTermExceedsMaximum(t *testing.T) {
+	p := priceParams()
+	p.Term = 600
+	p.GracePeriod = 1
+	_, err := domain.Simulate(p)
+	if !errors.Is(err, domain.ErrInvalidGracePeriod) {
+		t.Errorf("expected ErrInvalidGracePeriod for grace+term > 600, got %v", err)
+	}
+}
+
+func TestSimulatePRICE_GracePeriod_AdjustedAmountAndGraceEntries(t *testing.T) {
+	p := priceParams()
+	p.GracePeriod = 3
+	sim, err := domain.Simulate(p)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if sim.AdjustedAmount != 10612.08 {
+		t.Errorf("AdjustedAmount: got %.2f want 10612.08", sim.AdjustedAmount)
+	}
+	if sim.GracePeriod != 3 {
+		t.Errorf("GracePeriod: got %d want 3", sim.GracePeriod)
+	}
+	if sim.TotalDuration != 15 {
+		t.Errorf("TotalDuration: got %d want 15", sim.TotalDuration)
+	}
+
+	wantGrace := []struct {
+		interest float64
+		balance  float64
+	}{
+		{200.00, 10200.00},
+		{204.00, 10404.00},
+		{208.08, 10612.08},
+	}
+	for i, want := range wantGrace {
+		got := sim.Installments[i]
+		if got.Type != domain.InstallmentGrace {
+			t.Errorf("grace[%d] Type: got %q want %q", i, got.Type, domain.InstallmentGrace)
+		}
+		if got.Payment != 0 {
+			t.Errorf("grace[%d] Payment: got %.2f want 0", i, got.Payment)
+		}
+		if got.Principal != 0 {
+			t.Errorf("grace[%d] Principal: got %.2f want 0", i, got.Principal)
+		}
+		if got.Interest != want.interest {
+			t.Errorf("grace[%d] Interest: got %.2f want %.2f", i, got.Interest, want.interest)
+		}
+		if got.Balance != want.balance {
+			t.Errorf("grace[%d] Balance: got %.2f want %.2f", i, got.Balance, want.balance)
+		}
+	}
+}
+
+func TestSimulatePRICE_GracePeriod_Numbering(t *testing.T) {
+	p := priceParams()
+	p.GracePeriod = 3
+	sim, err := domain.Simulate(p)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(sim.Installments) != 15 {
+		t.Fatalf("expected 15 installments, got %d", len(sim.Installments))
+	}
+	for i, inst := range sim.Installments {
+		if inst.Number != i+1 {
+			t.Errorf("installments[%d].Number: got %d want %d", i, inst.Number, i+1)
+		}
+	}
+	for i := 0; i < 3; i++ {
+		if sim.Installments[i].Type != domain.InstallmentGrace {
+			t.Errorf("installments[%d].Type: got %q want %q", i, sim.Installments[i].Type, domain.InstallmentGrace)
+		}
+	}
+	paymentCount := 0
+	for i := 3; i < 15; i++ {
+		if sim.Installments[i].Type != domain.InstallmentPayment {
+			t.Errorf("installments[%d].Type: got %q want %q", i, sim.Installments[i].Type, domain.InstallmentPayment)
+		}
+		paymentCount++
+	}
+	if paymentCount != p.Term {
+		t.Errorf("payment count %d != term %d", paymentCount, p.Term)
+	}
+}
+
+func TestSimulatePRICE_GracePeriod_PaymentExceedsNoGrace(t *testing.T) {
+	noGrace, err := domain.Simulate(priceParams())
+	if err != nil {
+		t.Fatalf("unexpected error (no grace): %v", err)
+	}
+
+	withGrace := priceParams()
+	withGrace.GracePeriod = 3
+	graced, err := domain.Simulate(withGrace)
+	if err != nil {
+		t.Fatalf("unexpected error (grace): %v", err)
+	}
+
+	noGracePay := noGrace.Installments[0].Payment
+	gracedFirstPayment := graced.Installments[3].Payment
+	if !(gracedFirstPayment > noGracePay) {
+		t.Errorf("expected graced payment %.2f > non-graced %.2f", gracedFirstPayment, noGracePay)
+	}
+	if !(graced.TotalAmount > noGrace.TotalAmount) {
+		t.Errorf("expected graced total %.2f > non-graced %.2f", graced.TotalAmount, noGrace.TotalAmount)
+	}
+}
+
+func TestSimulateSAC_GracePeriod_Behavior(t *testing.T) {
+	p := sacParams()
+	p.GracePeriod = 3
+	sim, err := domain.Simulate(p)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if sim.AdjustedAmount != 10612.08 {
+		t.Errorf("AdjustedAmount: got %.2f want 10612.08", sim.AdjustedAmount)
+	}
+	if len(sim.Installments) != 15 {
+		t.Fatalf("expected 15 installments, got %d", len(sim.Installments))
+	}
+
+	paymentInstallments := sim.Installments[3:]
+	if len(paymentInstallments) != p.Term {
+		t.Errorf("payment installment count %d != term %d", len(paymentInstallments), p.Term)
+	}
+
+	sumPrincipal := 0.0
+	for _, inst := range paymentInstallments {
+		sumPrincipal += inst.Principal
+	}
+	if diff := sumPrincipal - sim.AdjustedAmount; diff > 0.01 || diff < -0.01 {
+		t.Errorf("sum of payment principals %.2f != AdjustedAmount %.2f", sumPrincipal, sim.AdjustedAmount)
+	}
+
+	for i := 1; i < len(paymentInstallments); i++ {
+		if paymentInstallments[i].Payment >= paymentInstallments[i-1].Payment {
+			t.Errorf("payment %d %.2f >= payment %d %.2f",
+				i+1, paymentInstallments[i].Payment, i, paymentInstallments[i-1].Payment)
+		}
+	}
+}
+
+func TestSimulate_GracePeriodZero_RegressionMatchesPreFeature(t *testing.T) {
+	preFeature, err := domain.Simulate(priceParams())
+	if err != nil {
+		t.Fatalf("unexpected error (baseline): %v", err)
+	}
+
+	p := priceParams()
+	p.GracePeriod = 0
+	graced, err := domain.Simulate(p)
+	if err != nil {
+		t.Fatalf("unexpected error (grace=0): %v", err)
+	}
+
+	if graced.GracePeriod != 0 {
+		t.Errorf("GracePeriod: got %d want 0", graced.GracePeriod)
+	}
+	if graced.AdjustedAmount != p.Amount {
+		t.Errorf("AdjustedAmount: got %.2f want %.2f", graced.AdjustedAmount, p.Amount)
+	}
+	if graced.TotalDuration != p.Term {
+		t.Errorf("TotalDuration: got %d want %d", graced.TotalDuration, p.Term)
+	}
+	if graced.TotalAmount != preFeature.TotalAmount {
+		t.Errorf("TotalAmount: got %.2f want %.2f", graced.TotalAmount, preFeature.TotalAmount)
+	}
+	if len(graced.Installments) != len(preFeature.Installments) {
+		t.Fatalf("installment count: got %d want %d", len(graced.Installments), len(preFeature.Installments))
+	}
+	for i, inst := range graced.Installments {
+		base := preFeature.Installments[i]
+		if inst.Number != base.Number {
+			t.Errorf("inst[%d].Number: got %d want %d", i, inst.Number, base.Number)
+		}
+		if inst.Payment != base.Payment {
+			t.Errorf("inst[%d].Payment: got %.2f want %.2f", i, inst.Payment, base.Payment)
+		}
+		if inst.Principal != base.Principal {
+			t.Errorf("inst[%d].Principal: got %.2f want %.2f", i, inst.Principal, base.Principal)
+		}
+		if inst.Interest != base.Interest {
+			t.Errorf("inst[%d].Interest: got %.2f want %.2f", i, inst.Interest, base.Interest)
+		}
+		if inst.Type != domain.InstallmentPayment {
+			t.Errorf("inst[%d].Type: got %q want %q", i, inst.Type, domain.InstallmentPayment)
+		}
+	}
+}

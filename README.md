@@ -34,7 +34,7 @@ docker compose up
 
 ### POST /loan/simulate
 
-Compute a loan amortization schedule.
+Compute a loan amortization schedule, optionally with a grace period.
 
 **Request**
 
@@ -43,16 +43,20 @@ Compute a loan amortization schedule.
   "amount": 10000,
   "rate": 0.02,
   "term": 12,
-  "system": "PRICE"
+  "system": "PRICE",
+  "grace_period": 3
 }
 ```
 
-| Field    | Type    | Description                         |
-|----------|---------|-------------------------------------|
-| `amount` | decimal | Loan principal (> 0)                |
-| `rate`   | decimal | Monthly interest rate (0 to < 1)    |
-| `term`   | integer | Number of installments (1 to 600)   |
-| `system` | string  | Amortization system: `PRICE`, `SAC` |
+| Field          | Type    | Required | Description                                                                                                  |
+|----------------|---------|----------|--------------------------------------------------------------------------------------------------------------|
+| `amount`       | decimal | yes      | Loan principal (> 0)                                                                                         |
+| `rate`         | decimal | yes      | Monthly interest rate (0 to < 1)                                                                             |
+| `term`         | integer | yes      | Number of paying installments (1 to 600)                                                                     |
+| `system`       | string  | yes      | Amortization system: `PRICE`, `SAC`                                                                          |
+| `grace_period` | integer | no       | Months before amortization begins (default `0`, must be `>= 0`, `grace_period + term <= 600`)                |
+
+During the grace period no payment is charged; interest is capitalized into the balance at the contracted `rate`. After the grace period the PMT is computed from the capitalized balance (`adjusted_amount = amount * (1 + rate)^grace_period`) over the original `term`.
 
 **Response — 200**
 
@@ -62,13 +66,26 @@ Compute a loan amortization schedule.
   "rate": 0.02,
   "term": 12,
   "system": "PRICE",
-  "total_amount": 11347.20,
+  "grace_period": 3,
+  "adjusted_amount": 10612.08,
+  "total_duration": 15,
+  "total_amount": 12041.99,
   "installments": [
-    { "number": 1, "payment": 945.60, "principal": 745.60, "interest": 200.00 },
-    { "number": 2, "payment": 945.60, "principal": 760.51, "interest": 185.09 }
+    { "number": 1, "type": "GRACE",   "payment": 0,       "principal": 0,      "interest": 200.00, "balance": 10200.00 },
+    { "number": 2, "type": "GRACE",   "payment": 0,       "principal": 0,      "interest": 204.00, "balance": 10404.00 },
+    { "number": 3, "type": "GRACE",   "payment": 0,       "principal": 0,      "interest": 208.08, "balance": 10612.08 },
+    { "number": 4, "type": "PAYMENT", "payment": 1003.47, "principal": 791.23, "interest": 212.24, "balance":  9820.85 }
   ]
 }
 ```
+
+| Field             | Description                                                       |
+|-------------------|-------------------------------------------------------------------|
+| `grace_period`    | Grace months echoed from the request (`0` when omitted)           |
+| `adjusted_amount` | Balance after grace capitalization; equals `amount` when grace=`0`|
+| `total_duration`  | Total operation length in months (`grace_period + term`)          |
+| `installments[].type`    | `GRACE` or `PAYMENT`                                       |
+| `installments[].balance` | Outstanding balance after this installment                 |
 
 ---
 

@@ -75,6 +75,83 @@ func TestLambdaHandler_SAC_ValidRequest(t *testing.T) {
 	}
 }
 
+func TestLambdaHandler_LoanGracePeriod(t *testing.T) {
+	h := newTestHandler()
+
+	req := events.APIGatewayProxyRequest{
+		HTTPMethod: "POST",
+		Path:       "/loan/simulate",
+		Body:       `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE", "grace_period": 3}`,
+	}
+
+	resp, err := h.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var simResp dto.SimulateResponse
+	if err := json.Unmarshal([]byte(resp.Body), &simResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if simResp.GracePeriod != 3 {
+		t.Errorf("GracePeriod: got %d want 3", simResp.GracePeriod)
+	}
+	if simResp.AdjustedAmount != 10612.08 {
+		t.Errorf("AdjustedAmount: got %.2f want 10612.08", simResp.AdjustedAmount)
+	}
+	if simResp.TotalDuration != 15 {
+		t.Errorf("TotalDuration: got %d want 15", simResp.TotalDuration)
+	}
+	if len(simResp.Installments) != 15 {
+		t.Fatalf("expected 15 installments, got %d", len(simResp.Installments))
+	}
+	for i := 0; i < 3; i++ {
+		if simResp.Installments[i].Type != "GRACE" {
+			t.Errorf("installments[%d].Type: got %q want \"GRACE\"", i, simResp.Installments[i].Type)
+		}
+	}
+}
+
+func TestLambdaHandler_LoanGracePeriodZero_SafeDefaults(t *testing.T) {
+	h := newTestHandler()
+
+	req := events.APIGatewayProxyRequest{
+		HTTPMethod: "POST",
+		Path:       "/loan/simulate",
+		Body:       `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE"}`,
+	}
+
+	resp, err := h.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var simResp dto.SimulateResponse
+	if err := json.Unmarshal([]byte(resp.Body), &simResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if simResp.GracePeriod != 0 {
+		t.Errorf("GracePeriod: got %d want 0", simResp.GracePeriod)
+	}
+	if simResp.AdjustedAmount != simResp.Amount {
+		t.Errorf("AdjustedAmount: got %.2f want %.2f", simResp.AdjustedAmount, simResp.Amount)
+	}
+	if simResp.TotalDuration != simResp.Term {
+		t.Errorf("TotalDuration: got %d want %d", simResp.TotalDuration, simResp.Term)
+	}
+	for i, inst := range simResp.Installments {
+		if inst.Type != "PAYMENT" {
+			t.Errorf("installments[%d].Type: got %q want \"PAYMENT\"", i, inst.Type)
+		}
+	}
+}
+
 func TestLambdaHandler_UnknownRoute(t *testing.T) {
 	h := newTestHandler()
 

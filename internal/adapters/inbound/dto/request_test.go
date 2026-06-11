@@ -27,6 +27,39 @@ func TestSimulateRequest_JSONRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSimulateRequest_GracePeriodDefaultsToZero(t *testing.T) {
+	raw := `{"amount":10000,"rate":0.02,"term":12,"system":"PRICE"}`
+	var req dto.SimulateRequest
+	if err := json.Unmarshal([]byte(raw), &req); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if req.GracePeriod != 0 {
+		t.Errorf("GracePeriod: got %d want 0", req.GracePeriod)
+	}
+}
+
+func TestSimulateRequest_GracePeriodExplicit(t *testing.T) {
+	raw := `{"amount":10000,"rate":0.02,"term":12,"system":"PRICE","grace_period":3}`
+	var req dto.SimulateRequest
+	if err := json.Unmarshal([]byte(raw), &req); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if req.GracePeriod != 3 {
+		t.Errorf("GracePeriod: got %d want 3", req.GracePeriod)
+	}
+}
+
+func TestSimulateRequest_GracePeriodNegativePreserved(t *testing.T) {
+	raw := `{"amount":10000,"rate":0.02,"term":12,"system":"PRICE","grace_period":-1}`
+	var req dto.SimulateRequest
+	if err := json.Unmarshal([]byte(raw), &req); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if req.GracePeriod != -1 {
+		t.Errorf("GracePeriod: got %d want -1 (DTO must not validate)", req.GracePeriod)
+	}
+}
+
 func TestSimulateInvestmentRequest_JSONRoundTrip(t *testing.T) {
 	raw := `{"initial_amount":5000,"monthly_contribution":200,"rate":0.01,"term":10}`
 	var req dto.SimulateInvestmentRequest
