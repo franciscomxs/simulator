@@ -15,11 +15,12 @@ func NewSimulateLoan() ports.SimulateLoanUseCase {
 // Execute runs the simulate loan use case.
 func (uc *simulateLoanUseCase) Execute(input ports.SimulateLoanInput) (ports.SimulateLoanOutput, error) {
 	params := domain.LoanParams{
-		Amount:      input.Amount,
-		Rate:        input.Rate,
-		Term:        input.Term,
-		System:      domain.AmortizationSystem(input.System),
-		GracePeriod: input.GracePeriod,
+		Amount:       input.Amount,
+		Rate:         input.Rate,
+		Term:         input.Term,
+		System:       domain.AmortizationSystem(input.System),
+		GracePeriod:  input.GracePeriod,
+		CustomerType: domain.CustomerType(input.CustomerType),
 	}
 
 	sim, err := domain.Simulate(params)
@@ -47,6 +48,11 @@ func (uc *simulateLoanUseCase) Execute(input ports.SimulateLoanInput) (ports.Sim
 		GracePeriod:    sim.GracePeriod,
 		AdjustedAmount: sim.AdjustedAmount,
 		TotalDuration:  sim.TotalDuration,
+		CustomerType:   string(sim.CustomerType),
+		GrossValue:     sim.GrossValue,
+		IOF:            sim.IOF,
+		NetValue:       sim.NetValue,
+		FinancedAmount: sim.FinancedAmount,
 		TotalAmount:    sim.TotalAmount,
 		Installments:   installments,
 	}, nil

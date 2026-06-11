@@ -25,7 +25,7 @@ func TestLambdaHandler_PRICE_ValidRequest(t *testing.T) {
 	req := events.APIGatewayProxyRequest{
 		HTTPMethod: "POST",
 		Path:       "/loan/simulate",
-		Body:       `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE"}`,
+		Body:       `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE", "customer_type": "PF"}`,
 	}
 
 	resp, err := h.Handle(context.Background(), req)
@@ -45,6 +45,39 @@ func TestLambdaHandler_PRICE_ValidRequest(t *testing.T) {
 	if len(simResp.Installments) != 12 {
 		t.Errorf("expected 12 installments, got %d", len(simResp.Installments))
 	}
+	if simResp.GrossValue != 10000 {
+		t.Errorf("GrossValue: got %.2f want 10000", simResp.GrossValue)
+	}
+	if simResp.IOF != 333.20 {
+		t.Errorf("IOF: got %.4f want 333.20", simResp.IOF)
+	}
+	if simResp.NetValue != 9666.80 {
+		t.Errorf("NetValue: got %.4f want 9666.80", simResp.NetValue)
+	}
+	if simResp.FinancedAmount != 10000 {
+		t.Errorf("FinancedAmount: got %.2f want 10000", simResp.FinancedAmount)
+	}
+	if simResp.CustomerType != "PF" {
+		t.Errorf("CustomerType: got %q want PF", simResp.CustomerType)
+	}
+}
+
+func TestLambdaHandler_MissingCustomerType(t *testing.T) {
+	h := newTestHandler()
+
+	req := events.APIGatewayProxyRequest{
+		HTTPMethod: "POST",
+		Path:       "/loan/simulate",
+		Body:       `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE"}`,
+	}
+
+	resp, err := h.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.StatusCode != 400 {
+		t.Errorf("expected status 400, got %d", resp.StatusCode)
+	}
 }
 
 func TestLambdaHandler_SAC_ValidRequest(t *testing.T) {
@@ -53,7 +86,7 @@ func TestLambdaHandler_SAC_ValidRequest(t *testing.T) {
 	req := events.APIGatewayProxyRequest{
 		HTTPMethod: "POST",
 		Path:       "/loan/simulate",
-		Body:       `{"amount": 10000, "rate": 0.02, "term": 12, "system": "SAC"}`,
+		Body:       `{"amount": 10000, "rate": 0.02, "term": 12, "system": "SAC", "customer_type": "PF"}`,
 	}
 
 	resp, err := h.Handle(context.Background(), req)
@@ -81,7 +114,7 @@ func TestLambdaHandler_LoanGracePeriod(t *testing.T) {
 	req := events.APIGatewayProxyRequest{
 		HTTPMethod: "POST",
 		Path:       "/loan/simulate",
-		Body:       `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE", "grace_period": 3}`,
+		Body:       `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE", "grace_period": 3, "customer_type": "PF"}`,
 	}
 
 	resp, err := h.Handle(context.Background(), req)
@@ -121,7 +154,7 @@ func TestLambdaHandler_LoanGracePeriodZero_SafeDefaults(t *testing.T) {
 	req := events.APIGatewayProxyRequest{
 		HTTPMethod: "POST",
 		Path:       "/loan/simulate",
-		Body:       `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE"}`,
+		Body:       `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE", "customer_type": "PF"}`,
 	}
 
 	resp, err := h.Handle(context.Background(), req)
@@ -158,7 +191,7 @@ func TestLambdaHandler_UnknownRoute(t *testing.T) {
 	req := events.APIGatewayProxyRequest{
 		HTTPMethod: "POST",
 		Path:       "/simulate",
-		Body:       `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE"}`,
+		Body:       `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE", "customer_type": "PF"}`,
 	}
 
 	resp, err := h.Handle(context.Background(), req)
@@ -177,7 +210,7 @@ func TestLambdaHandler_InvalidSystem(t *testing.T) {
 	req := events.APIGatewayProxyRequest{
 		HTTPMethod: "POST",
 		Path:       "/loan/simulate",
-		Body:       `{"amount": 10000, "rate": 0.02, "term": 12, "system": "INVALID"}`,
+		Body:       `{"amount": 10000, "rate": 0.02, "term": 12, "system": "INVALID", "customer_type": "PF"}`,
 	}
 
 	resp, err := h.Handle(context.Background(), req)

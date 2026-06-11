@@ -9,11 +9,16 @@ import (
 
 func TestSimulateResponse_JSONMarshal(t *testing.T) {
 	resp := dto.SimulateResponse{
-		Amount:      10000,
-		Rate:        0.02,
-		Term:        12,
-		System:      "PRICE",
-		TotalAmount: 11234.56,
+		Amount:         10000,
+		Rate:           0.02,
+		Term:           12,
+		System:         "PRICE",
+		CustomerType:   "PF",
+		GrossValue:     10000,
+		IOF:            333.20,
+		NetValue:       9666.80,
+		FinancedAmount: 10000,
+		TotalAmount:    11234.56,
 		Installments: []dto.InstallmentResponse{
 			{Number: 1, Payment: 936.21, Principal: 736.21, Interest: 200.00},
 		},
@@ -28,7 +33,7 @@ func TestSimulateResponse_JSONMarshal(t *testing.T) {
 		t.Fatalf("unmarshal map: %v", err)
 	}
 
-	for _, key := range []string{"amount", "rate", "term", "system", "total_amount", "installments"} {
+	for _, key := range []string{"amount", "rate", "term", "system", "customer_type", "gross_value", "iof", "net_value", "financed_amount", "total_amount", "installments"} {
 		if _, ok := m[key]; !ok {
 			t.Errorf("missing JSON key %q", key)
 		}

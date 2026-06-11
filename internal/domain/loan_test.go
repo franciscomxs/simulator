@@ -2,6 +2,7 @@ package domain_test
 
 import (
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/franciscomxs/simulator/internal/domain"
@@ -15,19 +16,21 @@ const (
 
 func priceParams() domain.LoanParams {
 	return domain.LoanParams{
-		Amount: testAmount,
-		Rate:   testRate,
-		Term:   testTerm,
-		System: domain.SystemPRICE,
+		Amount:       testAmount,
+		Rate:         testRate,
+		Term:         testTerm,
+		System:       domain.SystemPRICE,
+		CustomerType: domain.CustomerTypePF,
 	}
 }
 
 func sacParams() domain.LoanParams {
 	return domain.LoanParams{
-		Amount: testAmount,
-		Rate:   testRate,
-		Term:   testTerm,
-		System: domain.SystemSAC,
+		Amount:       testAmount,
+		Rate:         testRate,
+		Term:         testTerm,
+		System:       domain.SystemSAC,
+		CustomerType: domain.CustomerTypePF,
 	}
 }
 
@@ -253,10 +256,11 @@ func TestSimulate_TermExceedsMaximum(t *testing.T) {
 
 func TestSimulate_ZeroRate(t *testing.T) {
 	p := domain.LoanParams{
-		Amount: 12000,
-		Rate:   0,
-		Term:   12,
-		System: domain.SystemPRICE,
+		Amount:       12000,
+		Rate:         0,
+		Term:         12,
+		System:       domain.SystemPRICE,
+		CustomerType: domain.CustomerTypePF,
 	}
 	sim, err := domain.Simulate(p)
 	if err != nil {
@@ -474,5 +478,128 @@ func TestSimulate_GracePeriodZero_RegressionMatchesPreFeature(t *testing.T) {
 		if inst.Type != domain.InstallmentPayment {
 			t.Errorf("inst[%d].Type: got %q want %q", i, inst.Type, domain.InstallmentPayment)
 		}
+	}
+}
+
+// --- customer_type tests ---
+
+func TestSimulate_RejectsMissingCustomerType(t *testing.T) {
+	p := priceParams()
+	p.CustomerType = ""
+	_, err := domain.Simulate(p)
+	if !errors.Is(err, domain.ErrInvalidCustomerType) {
+		t.Errorf("expected ErrInvalidCustomerType, got %v", err)
+	}
+}
+
+func TestSimulate_RejectsUnknownCustomerType(t *testing.T) {
+	p := priceParams()
+	p.CustomerType = "XX"
+	_, err := domain.Simulate(p)
+	if !errors.Is(err, domain.ErrInvalidCustomerType) {
+		t.Errorf("expected ErrInvalidCustomerType, got %v", err)
+	}
+}
+
+// --- IOF tests ---
+
+func TestSimulate_IOF_PF_WorkedExample(t *testing.T) {
+	sim, err := domain.Simulate(priceParams())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sim.GrossValue != 10000 {
+		t.Errorf("GrossValue: got %.2f, want 10000", sim.GrossValue)
+	}
+	if sim.IOF != 333.20 {
+		t.Errorf("IOF: got %.4f, want 333.20", sim.IOF)
+	}
+	if sim.NetValue != 9666.80 {
+		t.Errorf("NetValue: got %.4f, want 9666.80", sim.NetValue)
+	}
+	if sim.FinancedAmount != 10000 {
+		t.Errorf("FinancedAmount: got %.2f, want 10000", sim.FinancedAmount)
+	}
+	if sim.CustomerType != domain.CustomerTypePF {
+		t.Errorf("CustomerType: got %q, want %q", sim.CustomerType, domain.CustomerTypePF)
+	}
+}
+
+func TestSimulate_IOF_PJ_SameAsPF(t *testing.T) {
+	pfParams := priceParams()
+	pjParams := priceParams()
+	pjParams.CustomerType = domain.CustomerTypePJ
+
+	pfSim, err := domain.Simulate(pfParams)
+	if err != nil {
+		t.Fatalf("PF unexpected error: %v", err)
+	}
+	pjSim, err := domain.Simulate(pjParams)
+	if err != nil {
+		t.Fatalf("PJ unexpected error: %v", err)
+	}
+
+	if pfSim.IOF != pjSim.IOF {
+		t.Errorf("IOF PF=%.2f PJ=%.2f, expected equal", pfSim.IOF, pjSim.IOF)
+	}
+	if pfSim.NetValue != pjSim.NetValue {
+		t.Errorf("NetValue PF=%.2f PJ=%.2f, expected equal", pfSim.NetValue, pjSim.NetValue)
+	}
+	if pfSim.FinancedAmount != pjSim.FinancedAmount {
+		t.Errorf("FinancedAmount PF=%.2f PJ=%.2f, expected equal", pfSim.FinancedAmount, pjSim.FinancedAmount)
+	}
+}
+
+func TestSimulate_IOF_DailyDaysCappedAt365(t *testing.T) {
+	p := priceParams()
+	p.Term = 24 // 720 days -> capped at 365
+	sim, err := domain.Simulate(p)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expectedFixed := 10000 * 0.0038
+	expectedDaily := 10000 * 0.000082 * 365
+	expectedIOF := math.Round((expectedFixed+expectedDaily)*100) / 100
+
+	if sim.IOF != expectedIOF {
+		t.Errorf("IOF: got %.4f, want %.4f (capped at 365 days)", sim.IOF, expectedIOF)
+	}
+}
+
+func TestSimulate_IOF_AmortizationUnchanged(t *testing.T) {
+	pfParams := priceParams()
+	pjParams := priceParams()
+	pjParams.CustomerType = domain.CustomerTypePJ
+
+	pfSim, err := domain.Simulate(pfParams)
+	if err != nil {
+		t.Fatalf("PF unexpected error: %v", err)
+	}
+	pjSim, err := domain.Simulate(pjParams)
+	if err != nil {
+		t.Fatalf("PJ unexpected error: %v", err)
+	}
+
+	if pfSim.TotalAmount != pjSim.TotalAmount {
+		t.Errorf("TotalAmount PF=%.2f PJ=%.2f, expected equal", pfSim.TotalAmount, pjSim.TotalAmount)
+	}
+	if len(pfSim.Installments) != len(pjSim.Installments) {
+		t.Fatalf("installments len mismatch: PF=%d PJ=%d", len(pfSim.Installments), len(pjSim.Installments))
+	}
+	for i := range pfSim.Installments {
+		if pfSim.Installments[i] != pjSim.Installments[i] {
+			t.Errorf("installment %d differs: PF=%+v PJ=%+v", i, pfSim.Installments[i], pjSim.Installments[i])
+		}
+	}
+
+	// Frozen reference: pre-feature PRICE result for the canonical inputs.
+	expectedFirstPayment := 945.60
+	expectedFirstInterest := 200.00
+	if pfSim.Installments[0].Payment != expectedFirstPayment {
+		t.Errorf("first payment: got %.2f, want %.2f", pfSim.Installments[0].Payment, expectedFirstPayment)
+	}
+	if pfSim.Installments[0].Interest != expectedFirstInterest {
+		t.Errorf("first interest: got %.2f, want %.2f", pfSim.Installments[0].Interest, expectedFirstInterest)
 	}
 }
