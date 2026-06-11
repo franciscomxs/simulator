@@ -41,10 +41,11 @@ func (h *LoanHandler) Simulate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	input := ports.SimulateLoanInput{
-		Amount: req.Amount,
-		Rate:   req.Rate,
-		Term:   req.Term,
-		System: req.System,
+		Amount:      req.Amount,
+		Rate:        req.Rate,
+		Term:        req.Term,
+		System:      req.System,
+		GracePeriod: req.GracePeriod,
 	}
 
 	out, err := h.useCase.Execute(input)
@@ -60,19 +61,24 @@ func (h *LoanHandler) Simulate(w http.ResponseWriter, r *http.Request) {
 	for i, inst := range out.Installments {
 		installments[i] = dto.InstallmentResponse{
 			Number:    inst.Number,
+			Type:      inst.Type,
 			Payment:   inst.Payment,
 			Principal: inst.Principal,
 			Interest:  inst.Interest,
+			Balance:   inst.Balance,
 		}
 	}
 
 	resp := dto.SimulateResponse{
-		Amount:       out.Amount,
-		Rate:         out.Rate,
-		Term:         out.Term,
-		System:       out.System,
-		TotalAmount:  out.TotalAmount,
-		Installments: installments,
+		Amount:         out.Amount,
+		Rate:           out.Rate,
+		Term:           out.Term,
+		System:         out.System,
+		GracePeriod:    out.GracePeriod,
+		AdjustedAmount: out.AdjustedAmount,
+		TotalDuration:  out.TotalDuration,
+		TotalAmount:    out.TotalAmount,
+		Installments:   installments,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

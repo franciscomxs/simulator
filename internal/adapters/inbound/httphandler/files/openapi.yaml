@@ -65,6 +65,14 @@ paths:
                   rate: 0.02
                   term: 12
                   system: "SAC"
+              price_with_grace:
+                summary: PRICE loan with grace period
+                value:
+                  amount: 10000
+                  rate: 0.02
+                  term: 12
+                  system: "PRICE"
+                  grace_period: 3
       responses:
         "200":
           description: Amortization schedule computed successfully
@@ -77,16 +85,23 @@ paths:
                 rate: 0.02
                 term: 12
                 system: "PRICE"
+                grace_period: 0
+                adjusted_amount: 10000
+                total_duration: 12
                 total_amount: 11347.20
                 installments:
                   - number: 1
+                    type: "PAYMENT"
                     payment: 945.60
                     principal: 745.60
                     interest: 200.00
+                    balance: 9254.40
                   - number: 2
+                    type: "PAYMENT"
                     payment: 945.60
                     principal: 760.51
                     interest: 185.09
+                    balance: 8493.89
         "400":
           description: Invalid input parameters
           content:
@@ -190,13 +205,22 @@ components:
           example: 0.02
         term:
           type: integer
-          description: Number of installments (1 to 600)
+          description: Number of paying installments (1 to 600)
           example: 12
         system:
           type: string
           enum: [PRICE, SAC]
           description: Amortization system
           example: PRICE
+        grace_period:
+          type: integer
+          minimum: 0
+          default: 0
+          description: |
+            Optional number of months before amortization begins. During the grace
+            window no payment is charged and interest is capitalized into the balance.
+            Constraint: `grace_period + term` must not exceed 600.
+          example: 3
 
     SimulateLoanResponse:
       type: object
@@ -211,10 +235,27 @@ components:
           example: 0.02
         term:
           type: integer
+          description: Number of paying installments
           example: 12
         system:
           type: string
           example: PRICE
+        grace_period:
+          type: integer
+          description: Grace months echoed from the request (0 if omitted)
+          example: 3
+        adjusted_amount:
+          type: number
+          format: double
+          description: |
+            Outstanding balance after the grace period, used as the PMT base.
+            Equals `amount * (1 + rate)^grace_period`. When `grace_period` is 0,
+            this equals `amount`.
+          example: 10612.08
+        total_duration:
+          type: integer
+          description: Total operation length in months (`grace_period + term`)
+          example: 15
         total_amount:
           type: number
           format: double
@@ -232,21 +273,33 @@ components:
           type: integer
           description: Installment number (1-based)
           example: 1
+        type:
+          type: string
+          enum: [GRACE, PAYMENT]
+          description: |
+            `GRACE` for entries during the grace period (payment and principal are 0,
+            interest is capitalized into the balance). `PAYMENT` for amortization entries.
+          example: PAYMENT
         payment:
           type: number
           format: double
-          description: Total payment (principal + interest)
+          description: Total payment (principal + interest); 0 for grace entries
           example: 945.60
         principal:
           type: number
           format: double
-          description: Principal portion
+          description: Principal portion; 0 for grace entries
           example: 745.60
         interest:
           type: number
           format: double
           description: Interest portion
           example: 200.00
+        balance:
+          type: number
+          format: double
+          description: Outstanding balance after this installment
+          example: 9254.40
 
     SimulateInvestmentRequest:
       type: object

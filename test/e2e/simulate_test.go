@@ -102,6 +102,92 @@ func TestE2E_SimulateSAC(t *testing.T) {
 	}
 }
 
+func TestE2E_SimulatePRICE_WithGracePeriod(t *testing.T) {
+	srv := newTestServer()
+	defer srv.Close()
+
+	body := `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE", "grace_period": 3}`
+	resp, err := http.Post(srv.URL+"/loan/simulate", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var simResp dto.SimulateResponse
+	if err := json.NewDecoder(resp.Body).Decode(&simResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if simResp.GracePeriod != 3 {
+		t.Errorf("GracePeriod: got %d want 3", simResp.GracePeriod)
+	}
+	if simResp.AdjustedAmount != 10612.08 {
+		t.Errorf("AdjustedAmount: got %.2f want 10612.08", simResp.AdjustedAmount)
+	}
+	if simResp.TotalDuration != 15 {
+		t.Errorf("TotalDuration: got %d want 15", simResp.TotalDuration)
+	}
+	if len(simResp.Installments) != 15 {
+		t.Fatalf("expected 15 installments, got %d", len(simResp.Installments))
+	}
+	for i := 0; i < 3; i++ {
+		if simResp.Installments[i].Type != "GRACE" {
+			t.Errorf("installments[%d].Type: got %q want \"GRACE\"", i, simResp.Installments[i].Type)
+		}
+		if simResp.Installments[i].Payment != 0 {
+			t.Errorf("installments[%d].Payment: got %.2f want 0", i, simResp.Installments[i].Payment)
+		}
+	}
+	for i := 3; i < 15; i++ {
+		if simResp.Installments[i].Type != "PAYMENT" {
+			t.Errorf("installments[%d].Type: got %q want \"PAYMENT\"", i, simResp.Installments[i].Type)
+		}
+	}
+}
+
+func TestE2E_SimulatePRICE_NoGracePeriod_BackwardCompat(t *testing.T) {
+	srv := newTestServer()
+	defer srv.Close()
+
+	body := `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE"}`
+	resp, err := http.Post(srv.URL+"/loan/simulate", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var simResp dto.SimulateResponse
+	if err := json.NewDecoder(resp.Body).Decode(&simResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if simResp.GracePeriod != 0 {
+		t.Errorf("GracePeriod: got %d want 0", simResp.GracePeriod)
+	}
+	if simResp.AdjustedAmount != simResp.Amount {
+		t.Errorf("AdjustedAmount: got %.2f want %.2f", simResp.AdjustedAmount, simResp.Amount)
+	}
+	if simResp.TotalDuration != simResp.Term {
+		t.Errorf("TotalDuration: got %d want %d", simResp.TotalDuration, simResp.Term)
+	}
+	if len(simResp.Installments) != 12 {
+		t.Fatalf("expected 12 installments, got %d", len(simResp.Installments))
+	}
+	for i, inst := range simResp.Installments {
+		if inst.Type != "PAYMENT" {
+			t.Errorf("installments[%d].Type: got %q want \"PAYMENT\"", i, inst.Type)
+		}
+	}
+}
+
 func TestE2E_ValidationError(t *testing.T) {
 	srv := newTestServer()
 	defer srv.Close()

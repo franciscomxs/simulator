@@ -2,10 +2,11 @@ package dto
 
 // SimulateRequest is the JSON body for the simulate loan request.
 type SimulateRequest struct {
-	Amount float64 `json:"amount"`
-	Rate   float64 `json:"rate"`
-	Term   int     `json:"term"`
-	System string  `json:"system"`
+	Amount      float64 `json:"amount"`
+	Rate        float64 `json:"rate"`
+	Term        int     `json:"term"`
+	System      string  `json:"system"`
+	GracePeriod int     `json:"grace_period"`
 }
 
 // SimulateInvestmentRequest is the JSON body for the simulate investment request.

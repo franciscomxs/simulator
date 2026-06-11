@@ -3,19 +3,24 @@ package dto
 // InstallmentResponse is a single installment in the simulate loan response.
 type InstallmentResponse struct {
 	Number    int     `json:"number"`
+	Type      string  `json:"type"`
 	Payment   float64 `json:"payment"`
 	Principal float64 `json:"principal"`
 	Interest  float64 `json:"interest"`
+	Balance   float64 `json:"balance"`
 }
 
 // SimulateResponse is the JSON body for the simulate loan response.
 type SimulateResponse struct {
-	Amount       float64               `json:"amount"`
-	Rate         float64               `json:"rate"`
-	Term         int                   `json:"term"`
-	System       string                `json:"system"`
-	TotalAmount  float64               `json:"total_amount"`
-	Installments []InstallmentResponse `json:"installments"`
+	Amount         float64               `json:"amount"`
+	Rate           float64               `json:"rate"`
+	Term           int                   `json:"term"`
+	System         string                `json:"system"`
+	GracePeriod    int                   `json:"grace_period"`
+	AdjustedAmount float64               `json:"adjusted_amount"`
+	TotalDuration  int                   `json:"total_duration"`
+	TotalAmount    float64               `json:"total_amount"`
+	Installments   []InstallmentResponse `json:"installments"`
 }
 
 // ErrorResponse is the JSON body for an error response.
