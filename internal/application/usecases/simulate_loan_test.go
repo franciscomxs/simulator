@@ -12,10 +12,11 @@ import (
 func TestSimulateLoan_PRICE_Valid(t *testing.T) {
 	uc := usecases.NewSimulateLoan()
 	input := ports.SimulateLoanInput{
-		Amount: 10000,
-		Rate:   0.02,
-		Term:   12,
-		System: "PRICE",
+		Amount:       10000,
+		Rate:         0.02,
+		Term:         12,
+		System:       "PRICE",
+		CustomerType: "PF",
 	}
 
 	out, err := uc.Execute(input)
@@ -40,10 +41,11 @@ func TestSimulateLoan_PRICE_Valid(t *testing.T) {
 func TestSimulateLoan_SAC_Valid(t *testing.T) {
 	uc := usecases.NewSimulateLoan()
 	input := ports.SimulateLoanInput{
-		Amount: 10000,
-		Rate:   0.02,
-		Term:   12,
-		System: "SAC",
+		Amount:       10000,
+		Rate:         0.02,
+		Term:         12,
+		System:       "SAC",
+		CustomerType: "PF",
 	}
 
 	out, err := uc.Execute(input)
@@ -62,10 +64,11 @@ func TestSimulateLoan_SAC_Valid(t *testing.T) {
 func TestSimulateLoan_InvalidAmount(t *testing.T) {
 	uc := usecases.NewSimulateLoan()
 	input := ports.SimulateLoanInput{
-		Amount: 0,
-		Rate:   0.02,
-		Term:   12,
-		System: "PRICE",
+		Amount:       0,
+		Rate:         0.02,
+		Term:         12,
+		System:       "PRICE",
+		CustomerType: "PF",
 	}
 
 	_, err := uc.Execute(input)
@@ -77,10 +80,11 @@ func TestSimulateLoan_InvalidAmount(t *testing.T) {
 func TestSimulateLoan_InvalidRate(t *testing.T) {
 	uc := usecases.NewSimulateLoan()
 	input := ports.SimulateLoanInput{
-		Amount: 10000,
-		Rate:   -0.01,
-		Term:   12,
-		System: "PRICE",
+		Amount:       10000,
+		Rate:         -0.01,
+		Term:         12,
+		System:       "PRICE",
+		CustomerType: "PF",
 	}
 
 	_, err := uc.Execute(input)
@@ -92,10 +96,11 @@ func TestSimulateLoan_InvalidRate(t *testing.T) {
 func TestSimulateLoan_InvalidTerm(t *testing.T) {
 	uc := usecases.NewSimulateLoan()
 	input := ports.SimulateLoanInput{
-		Amount: 10000,
-		Rate:   0.02,
-		Term:   0,
-		System: "PRICE",
+		Amount:       10000,
+		Rate:         0.02,
+		Term:         0,
+		System:       "PRICE",
+		CustomerType: "PF",
 	}
 
 	_, err := uc.Execute(input)
@@ -107,10 +112,11 @@ func TestSimulateLoan_InvalidTerm(t *testing.T) {
 func TestSimulateLoan_InvalidSystem(t *testing.T) {
 	uc := usecases.NewSimulateLoan()
 	input := ports.SimulateLoanInput{
-		Amount: 10000,
-		Rate:   0.02,
-		Term:   12,
-		System: "INVALID",
+		Amount:       10000,
+		Rate:         0.02,
+		Term:         12,
+		System:       "INVALID",
+		CustomerType: "PF",
 	}
 
 	_, err := uc.Execute(input)
@@ -122,10 +128,11 @@ func TestSimulateLoan_InvalidSystem(t *testing.T) {
 func TestSimulateLoan_OutputInstallmentFields(t *testing.T) {
 	uc := usecases.NewSimulateLoan()
 	input := ports.SimulateLoanInput{
-		Amount: 10000,
-		Rate:   0.02,
-		Term:   12,
-		System: "PRICE",
+		Amount:       10000,
+		Rate:         0.02,
+		Term:         12,
+		System:       "PRICE",
+		CustomerType: "PF",
 	}
 
 	out, err := uc.Execute(input)
@@ -151,11 +158,12 @@ func TestSimulateLoan_OutputInstallmentFields(t *testing.T) {
 func TestSimulateLoan_GracePeriod_PRDExample(t *testing.T) {
 	uc := usecases.NewSimulateLoan()
 	out, err := uc.Execute(ports.SimulateLoanInput{
-		Amount:      10000,
-		Rate:        0.02,
-		Term:        12,
-		System:      "PRICE",
-		GracePeriod: 3,
+		Amount:       10000,
+		Rate:         0.02,
+		Term:         12,
+		System:       "PRICE",
+		GracePeriod:  3,
+		CustomerType: "PF",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -191,10 +199,11 @@ func TestSimulateLoan_GracePeriod_PRDExample(t *testing.T) {
 func TestSimulateLoan_GracePeriodZero_SafeDefaults(t *testing.T) {
 	uc := usecases.NewSimulateLoan()
 	out, err := uc.Execute(ports.SimulateLoanInput{
-		Amount: 10000,
-		Rate:   0.02,
-		Term:   12,
-		System: "PRICE",
+		Amount:       10000,
+		Rate:         0.02,
+		Term:         12,
+		System:       "PRICE",
+		CustomerType: "PF",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -219,13 +228,62 @@ func TestSimulateLoan_GracePeriodZero_SafeDefaults(t *testing.T) {
 func TestSimulateLoan_NegativeGracePeriod(t *testing.T) {
 	uc := usecases.NewSimulateLoan()
 	_, err := uc.Execute(ports.SimulateLoanInput{
-		Amount:      10000,
-		Rate:        0.02,
-		Term:        12,
-		System:      "PRICE",
-		GracePeriod: -1,
+		Amount:       10000,
+		Rate:         0.02,
+		Term:         12,
+		System:       "PRICE",
+		GracePeriod:  -1,
+		CustomerType: "PF",
 	})
 	if !errors.Is(err, domain.ErrInvalidGracePeriod) {
 		t.Errorf("expected ErrInvalidGracePeriod, got %v", err)
+	}
+}
+
+func TestSimulateLoan_OutputIOFFields(t *testing.T) {
+	uc := usecases.NewSimulateLoan()
+	input := ports.SimulateLoanInput{
+		Amount:       10000,
+		Rate:         0.02,
+		Term:         12,
+		System:       "PRICE",
+		CustomerType: "PF",
+	}
+
+	out, err := uc.Execute(input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if out.CustomerType != "PF" {
+		t.Errorf("CustomerType: got %q, want PF", out.CustomerType)
+	}
+	if out.GrossValue != 10000 {
+		t.Errorf("GrossValue: got %.2f, want 10000", out.GrossValue)
+	}
+	if out.IOF != 333.20 {
+		t.Errorf("IOF: got %.4f, want 333.20", out.IOF)
+	}
+	if out.NetValue != 9666.80 {
+		t.Errorf("NetValue: got %.4f, want 9666.80", out.NetValue)
+	}
+	if out.FinancedAmount != 10000 {
+		t.Errorf("FinancedAmount: got %.2f, want 10000", out.FinancedAmount)
+	}
+}
+
+func TestSimulateLoan_InvalidCustomerType(t *testing.T) {
+	uc := usecases.NewSimulateLoan()
+	input := ports.SimulateLoanInput{
+		Amount:       10000,
+		Rate:         0.02,
+		Term:         12,
+		System:       "PRICE",
+		CustomerType: "XX",
+	}
+
+	_, err := uc.Execute(input)
+	if !errors.Is(err, domain.ErrInvalidCustomerType) {
+		t.Errorf("expected ErrInvalidCustomerType, got %v", err)
 	}
 }

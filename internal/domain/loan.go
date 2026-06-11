@@ -18,13 +18,29 @@ const (
 	InstallmentPayment InstallmentType = "PAYMENT"
 )
 
+// CustomerType represents the type of customer the loan is being simulated for.
+type CustomerType string
+
+const (
+	CustomerTypePF CustomerType = "PF"
+	CustomerTypePJ CustomerType = "PJ"
+)
+
+const (
+	iofFixedRate = 0.0038
+	iofDailyRate = 0.000082
+	iofMaxDays   = 365
+	daysPerMonth = 30
+)
+
 // LoanParams holds the input parameters for a loan simulation.
 type LoanParams struct {
-	Amount      float64
-	Rate        float64
-	Term        int
-	System      AmortizationSystem
-	GracePeriod int
+	Amount       float64
+	Rate         float64
+	Term         int
+	System       AmortizationSystem
+	GracePeriod  int
+	CustomerType CustomerType
 }
 
 // Installment represents a single loan installment.
@@ -46,6 +62,11 @@ type LoanSimulation struct {
 	GracePeriod    int
 	AdjustedAmount float64
 	TotalDuration  int
+	CustomerType   CustomerType
+	GrossValue     float64
+	IOF            float64
+	NetValue       float64
+	FinancedAmount float64
 	TotalAmount    float64
 	Installments   []Installment
 }
@@ -77,6 +98,9 @@ func Simulate(p LoanParams) (LoanSimulation, error) {
 	if p.GracePeriod+p.Term > maxTerm {
 		return LoanSimulation{}, ErrInvalidGracePeriod
 	}
+	if p.CustomerType != CustomerTypePF && p.CustomerType != CustomerTypePJ {
+		return LoanSimulation{}, ErrInvalidCustomerType
+	}
 
 	graceEntries, adjustedAmount := capitalizeGrace(p)
 
@@ -95,10 +119,17 @@ func Simulate(p LoanParams) (LoanSimulation, error) {
 		sim.Installments[i].Number = i + 1 + p.GracePeriod
 	}
 
+	iof, netValue, _ := calculateIOF(p.Amount, p.Term)
+
 	sim.Amount = p.Amount
 	sim.GracePeriod = p.GracePeriod
 	sim.AdjustedAmount = adjustedAmount
 	sim.TotalDuration = p.GracePeriod + p.Term
+	sim.CustomerType = p.CustomerType
+	sim.GrossValue = p.Amount
+	sim.IOF = iof
+	sim.NetValue = netValue
+	sim.FinancedAmount = p.Amount
 	sim.Installments = append(graceEntries, sim.Installments...)
 
 	return sim, nil
@@ -124,6 +155,21 @@ func capitalizeGrace(p LoanParams) ([]Installment, float64) {
 		}
 	}
 	return entries, balance
+}
+
+// calculateIOF returns the rounded IOF charged on grossValue for the given term
+// in months, the resulting net value disbursed to the customer, and the number
+// of days used in the daily component (capped at iofMaxDays).
+func calculateIOF(grossValue float64, term int) (iof, netValue float64, days int) {
+	days = term * daysPerMonth
+	if days > iofMaxDays {
+		days = iofMaxDays
+	}
+	iofFixed := grossValue * iofFixedRate
+	iofDaily := grossValue * iofDailyRate * float64(days)
+	iof = round2(iofFixed + iofDaily)
+	netValue = round2(grossValue - iof)
+	return iof, netValue, days
 }
 
 // simulatePRICE calculates the PRICE (French) amortization schedule.

@@ -40,12 +40,20 @@ func (h *LoanHandler) Simulate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := req.Validate(); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
 	input := ports.SimulateLoanInput{
-		Amount:      req.Amount,
-		Rate:        req.Rate,
-		Term:        req.Term,
-		System:      req.System,
-		GracePeriod: req.GracePeriod,
+		Amount:       req.Amount,
+		Rate:         req.Rate,
+		Term:         req.Term,
+		System:       req.System,
+		GracePeriod:  req.GracePeriod,
+		CustomerType: req.CustomerType,
 	}
 
 	out, err := h.useCase.Execute(input)
@@ -77,6 +85,11 @@ func (h *LoanHandler) Simulate(w http.ResponseWriter, r *http.Request) {
 		GracePeriod:    out.GracePeriod,
 		AdjustedAmount: out.AdjustedAmount,
 		TotalDuration:  out.TotalDuration,
+		CustomerType:   out.CustomerType,
+		GrossValue:     out.GrossValue,
+		IOF:            out.IOF,
+		NetValue:       out.NetValue,
+		FinancedAmount: out.FinancedAmount,
 		TotalAmount:    out.TotalAmount,
 		Installments:   installments,
 	}

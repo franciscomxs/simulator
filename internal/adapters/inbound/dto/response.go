@@ -19,6 +19,11 @@ type SimulateResponse struct {
 	GracePeriod    int                   `json:"grace_period"`
 	AdjustedAmount float64               `json:"adjusted_amount"`
 	TotalDuration  int                   `json:"total_duration"`
+	CustomerType   string                `json:"customer_type"`
+	GrossValue     float64               `json:"gross_value"`
+	IOF            float64               `json:"iof"`
+	NetValue       float64               `json:"net_value"`
+	FinancedAmount float64               `json:"financed_amount"`
 	TotalAmount    float64               `json:"total_amount"`
 	Installments   []InstallmentResponse `json:"installments"`
 }

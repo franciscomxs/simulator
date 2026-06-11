@@ -66,12 +66,17 @@ func (h *Handler) handleLoanSimulate(req events.APIGatewayProxyRequest) (events.
 		return jsonResponse(400, dto.ErrorResponse{Error: "invalid request body"}), nil
 	}
 
+	if err := simReq.Validate(); err != nil {
+		return jsonResponse(400, dto.ErrorResponse{Error: err.Error()}), nil
+	}
+
 	out, err := h.loanUseCase.Execute(ports.SimulateLoanInput{
-		Amount:      simReq.Amount,
-		Rate:        simReq.Rate,
-		Term:        simReq.Term,
-		System:      simReq.System,
-		GracePeriod: simReq.GracePeriod,
+		Amount:       simReq.Amount,
+		Rate:         simReq.Rate,
+		Term:         simReq.Term,
+		System:       simReq.System,
+		GracePeriod:  simReq.GracePeriod,
+		CustomerType: simReq.CustomerType,
 	})
 	if err != nil {
 		return jsonResponse(400, dto.ErrorResponse{Error: "invalid simulation parameters"}), nil
@@ -97,6 +102,11 @@ func (h *Handler) handleLoanSimulate(req events.APIGatewayProxyRequest) (events.
 		GracePeriod:    out.GracePeriod,
 		AdjustedAmount: out.AdjustedAmount,
 		TotalDuration:  out.TotalDuration,
+		CustomerType:   out.CustomerType,
+		GrossValue:     out.GrossValue,
+		IOF:            out.IOF,
+		NetValue:       out.NetValue,
+		FinancedAmount: out.FinancedAmount,
 		TotalAmount:    out.TotalAmount,
 		Installments:   installments,
 	}), nil

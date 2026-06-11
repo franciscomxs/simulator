@@ -2,13 +2,14 @@ package dto_test
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/franciscomxs/simulator/internal/adapters/inbound/dto"
 )
 
 func TestSimulateRequest_JSONRoundTrip(t *testing.T) {
-	raw := `{"amount":10000.5,"rate":0.02,"term":12,"system":"PRICE"}`
+	raw := `{"amount":10000.5,"rate":0.02,"term":12,"system":"PRICE","customer_type":"PF"}`
 	var req dto.SimulateRequest
 	if err := json.Unmarshal([]byte(raw), &req); err != nil {
 		t.Fatalf("unmarshal: %v", err)
@@ -24,6 +25,36 @@ func TestSimulateRequest_JSONRoundTrip(t *testing.T) {
 	}
 	if req.System != "PRICE" {
 		t.Errorf("System: got %q want PRICE", req.System)
+	}
+	if req.CustomerType != "PF" {
+		t.Errorf("CustomerType: got %q want PF", req.CustomerType)
+	}
+}
+
+func TestSimulateRequest_Validate_MissingCustomerType(t *testing.T) {
+	raw := `{"amount":10000,"rate":0.02,"term":12,"system":"PRICE"}`
+	var req dto.SimulateRequest
+	if err := json.Unmarshal([]byte(raw), &req); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if err := req.Validate(); !errors.Is(err, dto.ErrInvalidCustomerType) {
+		t.Errorf("expected ErrInvalidCustomerType, got %v", err)
+	}
+}
+
+func TestSimulateRequest_Validate_UnknownCustomerType(t *testing.T) {
+	req := dto.SimulateRequest{Amount: 10000, Rate: 0.02, Term: 12, System: "PRICE", CustomerType: "XX"}
+	if err := req.Validate(); !errors.Is(err, dto.ErrInvalidCustomerType) {
+		t.Errorf("expected ErrInvalidCustomerType, got %v", err)
+	}
+}
+
+func TestSimulateRequest_Validate_AcceptsPFAndPJ(t *testing.T) {
+	for _, ct := range []string{"PF", "PJ"} {
+		req := dto.SimulateRequest{Amount: 10000, Rate: 0.02, Term: 12, System: "PRICE", CustomerType: ct}
+		if err := req.Validate(); err != nil {
+			t.Errorf("CustomerType=%q: unexpected error %v", ct, err)
+		}
 	}
 }
 

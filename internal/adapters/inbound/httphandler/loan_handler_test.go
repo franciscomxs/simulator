@@ -21,7 +21,7 @@ func newTestLoanHandler() *httphandler.LoanHandler {
 func TestHTTPHandler_SimulatePRICE(t *testing.T) {
 	h := newTestLoanHandler()
 
-	body := `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE"}`
+	body := `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE", "customer_type": "PF"}`
 	req := httptest.NewRequest(http.MethodPost, "/simulate", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -40,12 +40,65 @@ func TestHTTPHandler_SimulatePRICE(t *testing.T) {
 	if len(resp.Installments) != 12 {
 		t.Errorf("expected 12 installments, got %d", len(resp.Installments))
 	}
+	if resp.GrossValue != 10000 {
+		t.Errorf("GrossValue: got %.2f want 10000", resp.GrossValue)
+	}
+	if resp.IOF != 333.20 {
+		t.Errorf("IOF: got %.4f want 333.20", resp.IOF)
+	}
+	if resp.NetValue != 9666.80 {
+		t.Errorf("NetValue: got %.4f want 9666.80", resp.NetValue)
+	}
+	if resp.FinancedAmount != 10000 {
+		t.Errorf("FinancedAmount: got %.2f want 10000", resp.FinancedAmount)
+	}
+	if resp.CustomerType != "PF" {
+		t.Errorf("CustomerType: got %q want PF", resp.CustomerType)
+	}
+}
+
+func TestHTTPHandler_MissingCustomerType(t *testing.T) {
+	h := newTestLoanHandler()
+
+	body := `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE"}`
+	req := httptest.NewRequest(http.MethodPost, "/simulate", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.Simulate(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", rr.Code)
+	}
+
+	var errResp dto.ErrorResponse
+	if err := json.NewDecoder(rr.Body).Decode(&errResp); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	if errResp.Error == "" {
+		t.Error("expected non-empty error message")
+	}
+}
+
+func TestHTTPHandler_UnknownCustomerType(t *testing.T) {
+	h := newTestLoanHandler()
+
+	body := `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE", "customer_type": "XX"}`
+	req := httptest.NewRequest(http.MethodPost, "/simulate", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.Simulate(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", rr.Code)
+	}
 }
 
 func TestHTTPHandler_SimulateSAC(t *testing.T) {
 	h := newTestLoanHandler()
 
-	body := `{"amount": 10000, "rate": 0.02, "term": 12, "system": "SAC"}`
+	body := `{"amount": 10000, "rate": 0.02, "term": 12, "system": "SAC", "customer_type": "PF"}`
 	req := httptest.NewRequest(http.MethodPost, "/simulate", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -69,7 +122,7 @@ func TestHTTPHandler_SimulateSAC(t *testing.T) {
 func TestHTTPHandler_InvalidSystem(t *testing.T) {
 	h := newTestLoanHandler()
 
-	body := `{"amount": 10000, "rate": 0.02, "term": 12, "system": "INVALID"}`
+	body := `{"amount": 10000, "rate": 0.02, "term": 12, "system": "INVALID", "customer_type": "PF"}`
 	req := httptest.NewRequest(http.MethodPost, "/simulate", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -92,7 +145,7 @@ func TestHTTPHandler_InvalidSystem(t *testing.T) {
 func TestHTTPHandler_NegativeAmount(t *testing.T) {
 	h := newTestLoanHandler()
 
-	body := `{"amount": -100, "rate": 0.02, "term": 12, "system": "PRICE"}`
+	body := `{"amount": -100, "rate": 0.02, "term": 12, "system": "PRICE", "customer_type": "PF"}`
 	req := httptest.NewRequest(http.MethodPost, "/simulate", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -139,7 +192,7 @@ func TestHTTPHandler_OversizedBody(t *testing.T) {
 func TestHTTPHandler_SimulateWithGracePeriod(t *testing.T) {
 	h := newTestLoanHandler()
 
-	body := `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE", "grace_period": 3}`
+	body := `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE", "grace_period": 3, "customer_type": "PF"}`
 	req := httptest.NewRequest(http.MethodPost, "/simulate", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -180,7 +233,7 @@ func TestHTTPHandler_SimulateWithGracePeriod(t *testing.T) {
 func TestHTTPHandler_SimulateWithoutGracePeriod_BackwardCompat(t *testing.T) {
 	h := newTestLoanHandler()
 
-	body := `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE"}`
+	body := `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE", "customer_type": "PF"}`
 	req := httptest.NewRequest(http.MethodPost, "/simulate", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -215,7 +268,7 @@ func TestHTTPHandler_SimulateWithoutGracePeriod_BackwardCompat(t *testing.T) {
 func TestHTTPHandler_NegativeGracePeriod(t *testing.T) {
 	h := newTestLoanHandler()
 
-	body := `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE", "grace_period": -1}`
+	body := `{"amount": 10000, "rate": 0.02, "term": 12, "system": "PRICE", "grace_period": -1, "customer_type": "PF"}`
 	req := httptest.NewRequest(http.MethodPost, "/simulate", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -238,7 +291,7 @@ func TestHTTPHandler_NegativeGracePeriod(t *testing.T) {
 func TestHTTPHandler_ErrorMessageIsGeneric(t *testing.T) {
 	h := newTestLoanHandler()
 
-	body := `{"amount": -100, "rate": 0.02, "term": 12, "system": "PRICE"}`
+	body := `{"amount": -100, "rate": 0.02, "term": 12, "system": "PRICE", "customer_type": "PF"}`
 	req := httptest.NewRequest(http.MethodPost, "/simulate", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()

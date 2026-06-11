@@ -52,27 +52,30 @@ paths:
               $ref: '#/components/schemas/SimulateLoanRequest'
             examples:
               price:
-                summary: PRICE loan
+                summary: PRICE loan (PF)
                 value:
                   amount: 10000
                   rate: 0.02
                   term: 12
                   system: "PRICE"
+                  customer_type: "PF"
               sac:
-                summary: SAC loan
+                summary: SAC loan (PF)
                 value:
                   amount: 10000
                   rate: 0.02
                   term: 12
                   system: "SAC"
+                  customer_type: "PF"
               price_with_grace:
-                summary: PRICE loan with grace period
+                summary: PRICE loan with grace period (PF)
                 value:
                   amount: 10000
                   rate: 0.02
                   term: 12
                   system: "PRICE"
                   grace_period: 3
+                  customer_type: "PF"
       responses:
         "200":
           description: Amortization schedule computed successfully
@@ -88,6 +91,11 @@ paths:
                 grace_period: 0
                 adjusted_amount: 10000
                 total_duration: 12
+                customer_type: "PF"
+                gross_value: 10000
+                iof: 333.20
+                net_value: 9666.80
+                financed_amount: 10000
                 total_amount: 11347.20
                 installments:
                   - number: 1
@@ -191,12 +199,12 @@ components:
   schemas:
     SimulateLoanRequest:
       type: object
-      required: [amount, rate, term, system]
+      required: [amount, rate, term, system, customer_type]
       properties:
         amount:
           type: number
           format: double
-          description: Loan principal (must be > 0)
+          description: Gross loan amount requested by the customer (must be > 0)
           example: 10000
         rate:
           type: number
@@ -221,6 +229,13 @@ components:
             window no payment is charged and interest is capitalized into the balance.
             Constraint: `grace_period + term` must not exceed 600.
           example: 3
+        customer_type:
+          type: string
+          enum: [PF, PJ]
+          description: |
+            Customer type. `PF` = Pessoa Física (individual),
+            `PJ` = Pessoa Jurídica (company). Drives IOF calculation.
+          example: PF
 
     SimulateLoanResponse:
       type: object
@@ -256,6 +271,32 @@ components:
           type: integer
           description: Total operation length in months (`grace_period + term`)
           example: 15
+        customer_type:
+          type: string
+          enum: [PF, PJ]
+          example: PF
+        gross_value:
+          type: number
+          format: double
+          description: Gross amount requested (equal to `amount`)
+          example: 10000
+        iof:
+          type: number
+          format: double
+          description: Total IOF withheld (fixed + daily, daily capped at 365 days)
+          example: 333.20
+        net_value:
+          type: number
+          format: double
+          description: Net amount disbursed to the customer (`gross_value − iof`)
+          example: 9666.80
+        financed_amount:
+          type: number
+          format: double
+          description: |
+            Principal used in the amortization schedule. Equals `gross_value` —
+            IOF is discounted from disbursement, not from the principal.
+          example: 10000
         total_amount:
           type: number
           format: double
