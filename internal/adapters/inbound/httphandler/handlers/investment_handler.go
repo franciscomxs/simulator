@@ -1,10 +1,11 @@
-package httphandler
+package handlers
 
 import (
 	"log/slog"
 	"net/http"
 
 	"github.com/franciscomxs/simulator/internal/adapters/inbound/dto"
+	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler/middlewares"
 	"github.com/franciscomxs/simulator/internal/application/ports"
 )
 
@@ -19,12 +20,10 @@ func NewInvestmentHandler(uc ports.SimulateInvestmentUseCase, log *slog.Logger) 
 	return &InvestmentHandler{useCase: uc, log: log}
 }
 
-// SimulateInvestment handles POST /investment/simulate requests.
+// SimulateInvestment handles POST /investment/simulate requests. Expects the
+// request to flow through the per-route middleware chain.
 func (h *InvestmentHandler) SimulateInvestment(w http.ResponseWriter, r *http.Request) {
-	req, ok := decodeJSON[dto.SimulateInvestmentRequest](w, r)
-	if !ok {
-		return
-	}
+	req, _ := middlewares.Decoded[dto.SimulateInvestmentRequest](r)
 
 	out, err := h.useCase.Execute(ports.SimulateInvestmentInput{
 		InitialAmount:       req.InitialAmount,
@@ -34,7 +33,7 @@ func (h *InvestmentHandler) SimulateInvestment(w http.ResponseWriter, r *http.Re
 	})
 	if err != nil {
 		h.log.Error("investment simulate", "error", err)
-		writeJSON(w, httpStatusForError(err), dto.ErrorResponse{Error: "invalid simulation parameters"})
+		middlewares.SetError(r, err, "invalid simulation parameters")
 		return
 	}
 
@@ -47,7 +46,7 @@ func (h *InvestmentHandler) SimulateInvestment(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	writeJSON(w, http.StatusOK, dto.SimulateInvestmentResponse{
+	middlewares.SetResponse(r, http.StatusOK, dto.SimulateInvestmentResponse{
 		InitialAmount:       out.InitialAmount,
 		MonthlyContribution: out.MonthlyContribution,
 		Rate:                out.Rate,

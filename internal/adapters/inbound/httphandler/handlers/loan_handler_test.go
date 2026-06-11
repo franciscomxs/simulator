@@ -1,4 +1,4 @@
-package httphandler_test
+package handlers_test
 
 import (
 	"bytes"
@@ -12,12 +12,23 @@ import (
 
 	"github.com/franciscomxs/simulator/internal/adapters/inbound/dto"
 	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler"
+	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler/handlers"
+	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler/middlewares"
 	"github.com/franciscomxs/simulator/internal/application/usecases"
 )
 
-func newTestLoanHandler() *httphandler.LoanHandler {
+func newTestLoanHandler() *handlers.LoanHandler {
 	uc := usecases.NewSimulateLoan()
-	return httphandler.NewLoanHandler(uc, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	return handlers.NewLoanHandler(uc, slog.New(slog.NewTextHandler(io.Discard, nil)))
+}
+
+func wrapLoan(h *handlers.LoanHandler) http.Handler {
+	return middlewares.Chain(
+		http.HandlerFunc(h.Simulate),
+		middlewares.WriteJSON(),
+		middlewares.ErrorMapper(),
+		middlewares.DecodeJSON[dto.SimulateRequest](),
+	)
 }
 
 func TestHTTPHandler_SimulatePRICE(t *testing.T) {
@@ -28,7 +39,7 @@ func TestHTTPHandler_SimulatePRICE(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.Simulate(rr, req)
+	wrapLoan(h).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected status 200, got %d", rr.Code)
@@ -67,7 +78,7 @@ func TestHTTPHandler_MissingCustomerType(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.Simulate(rr, req)
+	wrapLoan(h).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", rr.Code)
@@ -90,7 +101,7 @@ func TestHTTPHandler_UnknownCustomerType(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.Simulate(rr, req)
+	wrapLoan(h).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", rr.Code)
@@ -105,7 +116,7 @@ func TestHTTPHandler_SimulateSAC(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.Simulate(rr, req)
+	wrapLoan(h).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected status 200, got %d", rr.Code)
@@ -129,7 +140,7 @@ func TestHTTPHandler_InvalidSystem(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.Simulate(rr, req)
+	wrapLoan(h).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Errorf("expected status 422, got %d", rr.Code)
@@ -152,7 +163,7 @@ func TestHTTPHandler_NegativeAmount(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.Simulate(rr, req)
+	wrapLoan(h).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Errorf("expected status 422, got %d", rr.Code)
@@ -167,7 +178,7 @@ func TestHTTPHandler_InvalidJSON(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.Simulate(rr, req)
+	wrapLoan(h).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", rr.Code)
@@ -175,16 +186,16 @@ func TestHTTPHandler_InvalidJSON(t *testing.T) {
 }
 
 func TestHTTPHandler_OversizedBody(t *testing.T) {
-	h := newTestLoanHandler()
+	router := httphandler.NewRouter(newTestLoanHandler(), newInvestmentHandler())
 
 	// Valid JSON prefix forces the decoder to read past the 4 KB limit
 	// before hitting MaxBytesReader, so we get *http.MaxBytesError (not json.SyntaxError).
 	body := `{"amount":1,"rate":0.01,"term":1,"system":"` + strings.Repeat("x", 2<<20) + `"}`
-	req := httptest.NewRequest(http.MethodPost, "/simulate", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/loan/simulate", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.Simulate(rr, req)
+	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusRequestEntityTooLarge {
 		t.Errorf("expected status 413, got %d", rr.Code)
@@ -199,7 +210,7 @@ func TestHTTPHandler_SimulateWithGracePeriod(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.Simulate(rr, req)
+	wrapLoan(h).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", rr.Code)
@@ -240,7 +251,7 @@ func TestHTTPHandler_SimulateWithoutGracePeriod_BackwardCompat(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.Simulate(rr, req)
+	wrapLoan(h).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", rr.Code)
@@ -275,10 +286,10 @@ func TestHTTPHandler_NegativeGracePeriod(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.Simulate(rr, req)
+	wrapLoan(h).ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400, got %d", rr.Code)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected status 422, got %d", rr.Code)
 	}
 
 	var errResp dto.ErrorResponse
@@ -298,7 +309,7 @@ func TestHTTPHandler_ErrorMessageIsGeneric(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.Simulate(rr, req)
+	wrapLoan(h).ServeHTTP(rr, req)
 
 	var errResp dto.ErrorResponse
 	if err := json.NewDecoder(rr.Body).Decode(&errResp); err != nil {

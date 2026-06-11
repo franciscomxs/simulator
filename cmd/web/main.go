@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler"
+	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler/handlers"
 	"github.com/franciscomxs/simulator/internal/infrastructure/config"
 	"github.com/franciscomxs/simulator/internal/infrastructure/container"
 )
@@ -17,8 +18,8 @@ func main() {
 
 	loanUC := container.NewSimulateLoanUseCase()
 	investUC := container.NewSimulateInvestmentUseCase()
-	loanHandler := httphandler.NewLoanHandler(loanUC, logger)
-	investHandler := httphandler.NewInvestmentHandler(investUC, logger)
+	loanHandler := handlers.NewLoanHandler(loanUC, logger)
+	investHandler := handlers.NewInvestmentHandler(investUC, logger)
 	router := httphandler.NewRouter(loanHandler, investHandler)
 
 	srv := &http.Server{

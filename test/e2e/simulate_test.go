@@ -11,6 +11,7 @@ import (
 
 	"github.com/franciscomxs/simulator/internal/adapters/inbound/dto"
 	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler"
+	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler/handlers"
 	"github.com/franciscomxs/simulator/internal/infrastructure/container"
 )
 
@@ -18,8 +19,8 @@ func newTestServer() *httptest.Server {
 	loanUC := container.NewSimulateLoanUseCase()
 	investUC := container.NewSimulateInvestmentUseCase()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	loanHandler := httphandler.NewLoanHandler(loanUC, logger)
-	investHandler := httphandler.NewInvestmentHandler(investUC, logger)
+	loanHandler := handlers.NewLoanHandler(loanUC, logger)
+	investHandler := handlers.NewInvestmentHandler(investUC, logger)
 	router := httphandler.NewRouter(loanHandler, investHandler)
 	return httptest.NewServer(router)
 }

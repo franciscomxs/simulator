@@ -9,16 +9,15 @@ import (
 	"testing"
 
 	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler"
+	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler/handlers"
 	"github.com/franciscomxs/simulator/internal/application/usecases"
 )
 
-func newTestInvestmentHandler() *httphandler.InvestmentHandler {
-	uc := usecases.NewSimulateInvestment()
-	return httphandler.NewInvestmentHandler(uc, slog.New(slog.NewTextHandler(io.Discard, nil)))
-}
-
 func newTestRouter() http.Handler {
-	return httphandler.NewRouter(newTestLoanHandler(), newTestInvestmentHandler())
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	lh := handlers.NewLoanHandler(usecases.NewSimulateLoan(), logger)
+	ih := handlers.NewInvestmentHandler(usecases.NewSimulateInvestment(), logger)
+	return httphandler.NewRouter(lh, ih)
 }
 
 func TestHTTPRouter_HealthCheck(t *testing.T) {

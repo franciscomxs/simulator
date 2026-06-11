@@ -1,10 +1,11 @@
-package httphandler
+package handlers
 
 import (
 	"log/slog"
 	"net/http"
 
 	"github.com/franciscomxs/simulator/internal/adapters/inbound/dto"
+	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler/middlewares"
 	"github.com/franciscomxs/simulator/internal/application/ports"
 )
 
@@ -19,15 +20,13 @@ func NewLoanHandler(uc ports.SimulateLoanUseCase, log *slog.Logger) *LoanHandler
 	return &LoanHandler{useCase: uc, log: log}
 }
 
-// Simulate handles POST /loan/simulate requests.
+// Simulate handles POST /loan/simulate requests. Expects the request to flow
+// through the per-route middleware chain (DecodeJSON, WriteJSON, ErrorMapper).
 func (h *LoanHandler) Simulate(w http.ResponseWriter, r *http.Request) {
-	req, ok := decodeJSON[dto.SimulateRequest](w, r)
-	if !ok {
-		return
-	}
+	req, _ := middlewares.Decoded[dto.SimulateRequest](r)
 
 	if err := req.Validate(); err != nil {
-		writeJSON(w, http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		middlewares.SetResponse(r, http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
 		return
 	}
 
@@ -41,7 +40,7 @@ func (h *LoanHandler) Simulate(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		h.log.Error("loan simulate", "error", err)
-		writeJSON(w, httpStatusForError(err), dto.ErrorResponse{Error: "invalid simulation parameters"})
+		middlewares.SetError(r, err, "invalid simulation parameters")
 		return
 	}
 
@@ -57,7 +56,7 @@ func (h *LoanHandler) Simulate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeJSON(w, http.StatusOK, dto.SimulateResponse{
+	middlewares.SetResponse(r, http.StatusOK, dto.SimulateResponse{
 		Amount:         out.Amount,
 		Rate:           out.Rate,
 		Term:           out.Term,

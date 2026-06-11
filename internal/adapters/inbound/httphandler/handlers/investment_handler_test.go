@@ -1,4 +1,4 @@
-package httphandler_test
+package handlers_test
 
 import (
 	"bytes"
@@ -12,12 +12,23 @@ import (
 
 	"github.com/franciscomxs/simulator/internal/adapters/inbound/dto"
 	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler"
+	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler/handlers"
+	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler/middlewares"
 	"github.com/franciscomxs/simulator/internal/application/usecases"
 )
 
-func newInvestmentHandler() *httphandler.InvestmentHandler {
+func newInvestmentHandler() *handlers.InvestmentHandler {
 	uc := usecases.NewSimulateInvestment()
-	return httphandler.NewInvestmentHandler(uc, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	return handlers.NewInvestmentHandler(uc, slog.New(slog.NewTextHandler(io.Discard, nil)))
+}
+
+func wrapInvestment(h *handlers.InvestmentHandler) http.Handler {
+	return middlewares.Chain(
+		http.HandlerFunc(h.SimulateInvestment),
+		middlewares.WriteJSON(),
+		middlewares.ErrorMapper(),
+		middlewares.DecodeJSON[dto.SimulateInvestmentRequest](),
+	)
 }
 
 func TestHTTPInvestmentHandler_Valid(t *testing.T) {
@@ -28,7 +39,7 @@ func TestHTTPInvestmentHandler_Valid(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.SimulateInvestment(rr, req)
+	wrapInvestment(h).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected status 200, got %d", rr.Code)
@@ -58,7 +69,7 @@ func TestHTTPInvestmentHandler_NegativeInitialAmount(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.SimulateInvestment(rr, req)
+	wrapInvestment(h).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Errorf("expected status 422, got %d", rr.Code)
@@ -73,7 +84,7 @@ func TestHTTPInvestmentHandler_NegativeMonthlyContribution(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.SimulateInvestment(rr, req)
+	wrapInvestment(h).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Errorf("expected status 422, got %d", rr.Code)
@@ -88,7 +99,7 @@ func TestHTTPInvestmentHandler_NegativeRate(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.SimulateInvestment(rr, req)
+	wrapInvestment(h).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Errorf("expected status 422, got %d", rr.Code)
@@ -103,7 +114,7 @@ func TestHTTPInvestmentHandler_ZeroTerm(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.SimulateInvestment(rr, req)
+	wrapInvestment(h).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Errorf("expected status 422, got %d", rr.Code)
@@ -118,7 +129,7 @@ func TestHTTPInvestmentHandler_InvalidJSON(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.SimulateInvestment(rr, req)
+	wrapInvestment(h).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", rr.Code)
@@ -126,14 +137,14 @@ func TestHTTPInvestmentHandler_InvalidJSON(t *testing.T) {
 }
 
 func TestHTTPInvestmentHandler_OversizedBody(t *testing.T) {
-	h := newInvestmentHandler()
+	router := httphandler.NewRouter(newTestLoanHandler(), newInvestmentHandler())
 
 	body := `{"initial_amount":0,"monthly_contribution":1000,"rate":0.01,"term":1,"extra":"` + strings.Repeat("x", 2<<20) + `"}`
 	req := httptest.NewRequest(http.MethodPost, "/investment/simulate", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.SimulateInvestment(rr, req)
+	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusRequestEntityTooLarge {
 		t.Errorf("expected status 413, got %d", rr.Code)
@@ -148,7 +159,7 @@ func TestHTTPInvestmentHandler_ErrorIsGeneric(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
-	h.SimulateInvestment(rr, req)
+	wrapInvestment(h).ServeHTTP(rr, req)
 
 	var errResp dto.ErrorResponse
 	if err := json.NewDecoder(rr.Body).Decode(&errResp); err != nil {

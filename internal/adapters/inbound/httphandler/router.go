@@ -1,12 +1,29 @@
 package httphandler
 
-import "net/http"
+import (
+	"net/http"
 
-func NewRouter(lh *LoanHandler, ih *InvestmentHandler) http.Handler {
+	"github.com/franciscomxs/simulator/internal/adapters/inbound/dto"
+	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler/handlers"
+	"github.com/franciscomxs/simulator/internal/adapters/inbound/httphandler/middlewares"
+)
+
+func NewRouter(lh *handlers.LoanHandler, ih *handlers.InvestmentHandler) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /loan/simulate", lh.Simulate)
-	mux.HandleFunc("POST /investment/simulate", ih.SimulateInvestment)
+	mux.Handle("POST /loan/simulate", middlewares.Chain(
+		http.HandlerFunc(lh.Simulate),
+		middlewares.WriteJSON(),
+		middlewares.ErrorMapper(),
+		middlewares.DecodeJSON[dto.SimulateRequest](),
+	))
+
+	mux.Handle("POST /investment/simulate", middlewares.Chain(
+		http.HandlerFunc(ih.SimulateInvestment),
+		middlewares.WriteJSON(),
+		middlewares.ErrorMapper(),
+		middlewares.DecodeJSON[dto.SimulateInvestmentRequest](),
+	))
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -23,5 +40,7 @@ func NewRouter(lh *LoanHandler, ih *InvestmentHandler) http.Handler {
 		_, _ = w.Write(swaggerUIHTML)
 	})
 
-	return mux
+	return middlewares.Chain(mux,
+		middlewares.MaxBodyBytes(middlewares.DefaultMaxBodyBytes),
+	)
 }
